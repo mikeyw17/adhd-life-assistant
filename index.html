@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <title>浩恩的 ADHD Life Assistant</title>
+
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#111827">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #121212;
+            color: #e0e0e0;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .card {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #333;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            background: #2d2d2d;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #bb86fc;
+            color: #121212;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background: #9a67ea;
+        }
+
+        button:disabled {
+            background: #555;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #bb86fc;
+        }
+
+        .timer {
+            font-size: 34px;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+            color: #03dac6;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.25);
+            margin-right: 8px;
+        }
+
+        .status {
+            color: #03dac6;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>⚡ 浩恩的極簡人生系統</h1>
+
+    <div class="card">
+        <h3>🌙 系統狀態：強制降溫協議</h3>
+
+        <p>
+            當前時間已過深夜。為了明早 9:00 辦公室高效運轉，
+            系統下達：
+            <strong>準備登出，執行物理休息。</strong>
+        </p>
+    </div>
+
+    <div class="card">
+        <h3>🧠 大腦資源回收桶與靈感暫存區</h3>
+
+        <p>
+            把今晚所有未竟的想法、閃光靈感、明天待辦全部丟進來，
+            不用排版，直接存檔：
+        </p>
+
+        <textarea
+            id="brainDump"
+            placeholder="把想法、未完成的待辦、焦慮全丟進來……"
+        ></textarea>
+
+        <button type="button" onclick="saveDump()">
+            存入本地暫存
+        </button>
+    </div>
+
+    <div class="card">
+        <h3>⏱️ 明日 09:00 工作啟動區</h3>
+
+        <p>
+            <strong>昨日殘留進度載入：</strong>
+        </p>
+
+        <p id="loadDumpDisplay" class="status">
+            目前沒有已保存的內容
+        </p>
+
+        <div class="timer" id="timerDisplay">25:00</div>
+
+        <button
+            id="timerButton"
+            type="button"
+            onclick="togglePomodoro()"
+        >
+            啟動 25 分鐘專注番茄鐘
+        </button>
+
+        <button
+            type="button"
+            onclick="resetPomodoro()"
+        >
+            重設番茄鐘
+        </button>
+    </div>
+
+    <div class="card">
+        <h3>🥗 今日健康與習慣打卡</h3>
+
+        <label>
+            <input type="checkbox" id="medCheck">
+            早上依醫囑服用藥物
+        </label>
+
+        <label>
+            <input type="checkbox" id="dietCheck">
+            午晚餐補足高蛋白、高纖維與適量碳水
+        </label>
+
+        <label>
+            <input type="checkbox" id="workoutCheck">
+            執行今日運動或體態維護
+        </label>
+
+        <label>
+            <input type="checkbox" id="nightCareCheck">
+            執行睡前維護：鼻子、頭髮、臉與藥物
+        </label>
+
+        <label>
+            <input type="checkbox" id="restCheck">
+            確實執行停機與休息
+        </label>
+
+        <button
+            type="button"
+            onclick="exportToDailyLog()"
+        >
+            生成今日流水帳
+        </button>
+    </div>
+
+    <div class="card">
+        <h3>📊 流水帳預覽</h3>
+
+        <textarea
+            id="logOutput"
+            placeholder="點擊上方按鈕後，這裡會產生 Markdown 格式的日記流水帳。"
+        ></textarea>
+
+        <button
+            type="button"
+            onclick="copyDailyLog()"
+        >
+            複製流水帳
+        </button>
+    </div>
+
+    <script>
+        const STORAGE_KEYS = {
+            brainDump: "haon_brain_dump",
+            habits: "haon_daily_habits",
+            dailyLog: "haon_daily_log"
+        };
+
+        const habitIds = [
+            "medCheck",
+            "dietCheck",
+            "workoutCheck",
+            "nightCareCheck",
+            "restCheck"
+        ];
+
+        let timerSeconds = 25 * 60;
+        let timerInterval = null;
+        let timerRunning = false;
+
+        function saveDump() {
+            const text = document
+                .getElementById("brainDump")
+                .value
+                .trim();
+
+            localStorage.setItem(STORAGE_KEYS.brainDump, text);
+
+            updateDumpDisplay(text);
+
+            alert("思緒已安全封存。現在不需要繼續處理。");
+        }
+
+        function updateDumpDisplay(text) {
+            const display = document.getElementById("loadDumpDisplay");
+
+            if (!text) {
+                display.textContent = "目前暫存區為空";
+                return;
+            }
+
+            display.textContent = text;
+        }
+
+        function saveHabits() {
+            const habits = {};
+
+            habitIds.forEach((id) => {
+                habits[id] = document.getElementById(id).checked;
+            });
+
+            localStorage.setItem(
+                STORAGE_KEYS.habits,
+                JSON.stringify(habits)
+            );
+        }
+
+        function loadHabits() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEYS.habits);
+
+                if (!saved) {
+                    return;
+                }
+
+                const habits = JSON.parse(saved);
+
+                habitIds.forEach((id) => {
+                    document.getElementById(id).checked =
+                        Boolean(habits[id]);
+                });
+            } catch (error) {
+                console.error("讀取打卡資料失敗：", error);
+            }
+        }
+
+        function togglePomodoro() {
+            if (timerRunning) {
+                pausePomodoro();
+            } else {
+                startPomodoro();
+            }
+        }
+
+        function startPomodoro() {
+            if (timerRunning) {
+                return;
+            }
+
+            timerRunning = true;
+
+            document.getElementById("timerButton").textContent =
+                "暫停番茄鐘";
+
+            timerInterval = window.setInterval(() => {
+                timerSeconds -= 1;
+                updateTimerDisplay();
+
+                if (timerSeconds <= 0) {
+                    completePomodoro();
+                }
+            }, 1000);
+        }
+
+        function pausePomodoro() {
+            timerRunning = false;
+
+            window.clearInterval(timerInterval);
+            timerInterval = null;
+
+            document.getElementById("timerButton").textContent =
+                "繼續番茄鐘";
+        }
+
+        function resetPomodoro() {
+            timerRunning = false;
+            timerSeconds = 25 * 60;
+
+            window.clearInterval(timerInterval);
+            timerInterval = null;
+
+            document.getElementById("timerButton").textContent =
+                "啟動 25 分鐘專注番茄鐘";
+
+            updateTimerDisplay();
+        }
+
+        function completePomodoro() {
+            timerRunning = false;
+            timerSeconds = 0;
+
+            window.clearInterval(timerInterval);
+            timerInterval = null;
+
+            updateTimerDisplay();
+
+            document.getElementById("timerButton").textContent =
+                "番茄鐘已完成";
+
+            alert("25 分鐘完成！先休息、喝水，再決定是否繼續。");
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timerSeconds / 60);
+            const seconds = timerSeconds % 60;
+
+            document.getElementById("timerDisplay").textContent =
+                `${String(minutes).padStart(2, "0")}:` +
+                `${String(seconds).padStart(2, "0")}`;
+        }
+
+        function exportToDailyLog() {
+            const dump = document
+                .getElementById("brainDump")
+                .value
+                .trim();
+
+            const med = document.getElementById("medCheck").checked
+                ? "✅ 已完成"
+                : "⬜ 未記錄";
+
+            const diet = document.getElementById("dietCheck").checked
+                ? "✅ 已完成"
+                : "⬜ 未記錄";
+
+            const workout = document.getElementById("workoutCheck").checked
+                ? "✅ 已完成"
+                : "⬜ 未記錄";
+
+            const nightCare =
+                document.getElementById("nightCareCheck").checked
+                    ? "✅ 已完成"
+                    : "⬜ 未記錄";
+
+            const rest = document.getElementById("restCheck").checked
+                ? "✅ 已完成"
+                : "⬜ 未記錄";
+
+            const date = new Intl.DateTimeFormat("zh-TW", {
+                timeZone: "Asia/Taipei",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                weekday: "long"
+            }).format(new Date());
+
+            const markdownLog =
+`# ${date}｜浩恩生活日誌
+
+## 健康與生活
+
+- **服藥狀態**：${med}
+- **減脂飲食**：${diet}
+- **運動執行**：${workout}
+- **睡前維護**：${nightCare}
+- **好好休息**：${rest}
+
+## 大腦暫存與今日思緒
+
+${dump || "今天尚未輸入內容。"}
+
+---
+
+此內容由 ADHD Life Assistant 產生。`;
+
+            document.getElementById("logOutput").value = markdownLog;
+
+            localStorage.setItem(
+                STORAGE_KEYS.dailyLog,
+                markdownLog
+            );
+
+            saveHabits();
+        }
+
+        async function copyDailyLog() {
+            const text = document.getElementById("logOutput").value;
+
+            if (!text.trim()) {
+                alert("目前沒有可複製的流水帳。");
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(text);
+                alert("流水帳已複製，可以貼到 OneNote。");
+            } catch (error) {
+                console.error("複製失敗：", error);
+                alert("無法自動複製，請手動選取文字。");
+            }
+        }
+
+        function initializeApp() {
+            const savedText =
+                localStorage.getItem(STORAGE_KEYS.brainDump) || "";
+
+            const savedLog =
+                localStorage.getItem(STORAGE_KEYS.dailyLog) || "";
+
+            document.getElementById("brainDump").value = savedText;
+            document.getElementById("logOutput").value = savedLog;
+
+            updateDumpDisplay(savedText);
+            loadHabits();
+            updateTimerDisplay();
+
+            habitIds.forEach((id) => {
+                document
+                    .getElementById(id)
+                    .addEventListener("change", saveHabits);
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", initializeApp);
+
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", async () => {
+                try {
+                    const registration =
+                        await navigator.serviceWorker.register("./sw.js");
+
+                    console.log(
+                        "Service Worker registered:",
+                        registration.scope
+                    );
+                } catch (error) {
+                    console.error(
+                        "Service Worker registration failed:",
+                        error
+                    );
+                }
+            });
+        }
+    </script>
+</body>
+</html>
