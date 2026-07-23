@@ -98,17 +98,26 @@
 
 <body>
 
-    <h1>⚡ 浩恩的極簡人生系統</h1>
+    <h1>⚡ 浩恩的人生系統助手</h1>
 
-    <div class="card">
-        <h3>🌙 系統狀態：強制降溫協議</h3>
+    <div class="card" id="systemStatusCard">
+    <h3 id="systemStatusTitle">⏳ 系統狀態載入中</h3>
 
-        <p>
-            當前時間已過深夜。為了明早 9:00 辦公室高效運轉，
-            系統下達：
-            <strong>準備登出，執行物理休息。</strong>
-        </p>
-    </div>
+    <p id="systemStatusMessage">
+        正在根據目前時間調整人生系統……
+    </p>
+
+    <p class="status" id="currentTimeDisplay"></p>
+
+    <button
+        id="alarmButton"
+        type="button"
+        onclick="openAlarmApp()"
+        hidden
+    >
+        ⏰ 設定起床鬧鐘
+    </button>
+</div>
 
     <div class="card">
         <h3>🧠 大腦資源回收桶與靈感暫存區</h3>
@@ -227,6 +236,151 @@
         let timerSeconds = 25 * 60;
         let timerInterval = null;
         let timerRunning = false;
+
+let statusUpdateInterval = null;
+
+function getTaipeiTime() {
+    const taipeiTime = new Intl.DateTimeFormat("zh-TW", {
+        timeZone: "Asia/Taipei",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+    }).formatToParts(new Date());
+
+    const parts = {};
+
+    taipeiTime.forEach((part) => {
+        parts[part.type] = part.value;
+    });
+
+    return {
+        hour: Number(parts.hour),
+        minute: Number(parts.minute),
+        second: Number(parts.second),
+        text: `${parts.hour}:${parts.minute}:${parts.second}`
+    };
+}
+
+function updateSystemStatus() {
+    const now = getTaipeiTime();
+    const totalMinutes = now.hour * 60 + now.minute;
+
+    const title = document.getElementById("systemStatusTitle");
+    const message = document.getElementById("systemStatusMessage");
+    const timeDisplay = document.getElementById("currentTimeDisplay");
+    const alarmButton = document.getElementById("alarmButton");
+    const card = document.getElementById("systemStatusCard");
+
+    timeDisplay.textContent = `目前時間：${now.text}`;
+
+    // 每次更新前先恢復預設樣式
+    alarmButton.hidden = true;
+    card.style.borderColor = "#333";
+
+    /*
+      00:00–00:59 仍屬於晚間成長時段
+      01:00–07:59 強制降溫
+    */
+
+    if (totalMinutes >= 60 && totalMinutes < 480) {
+        title.textContent = "🌙 系統狀態：強制降溫協議";
+
+        message.innerHTML = `
+            現在不是繼續擴充系統的時間。請先把想法存進暫存區，
+            設定鬧鐘，關閉工作畫面並執行物理休息。
+            <strong>停止不是放棄，而是替明天保存執行力。</strong>
+        `;
+
+        alarmButton.hidden = false;
+        card.style.borderColor = "#cf6679";
+
+    } else if (totalMinutes >= 480 && totalMinutes < 720) {
+        title.textContent = "💼 系統狀態：專心上班";
+
+        message.innerHTML = `
+            現在是上午工作時段。確認今日三件事，
+            開啟一個 25 分鐘番茄鐘，先完成眼前唯一的下一步。
+            <strong>新想法先丟進暫存區，不立即開新專案。</strong>
+        `;
+
+        card.style.borderColor = "#03dac6";
+
+    } else if (totalMinutes >= 720 && totalMinutes < 810) {
+        title.textContent = "🥗 系統狀態：身心與眼睛休息";
+
+        message.innerHTML = `
+            暫停工作畫面，讓眼睛看遠處、喝水並補足午餐營養。
+            <strong>優先補充蛋白質、蔬菜纖維與適量碳水。</strong>
+        `;
+
+        card.style.borderColor = "#fbbf24";
+
+    } else if (totalMinutes >= 810 && totalMinutes < 1110) {
+        title.textContent = "💼 系統狀態：專心上班";
+
+        message.innerHTML = `
+            現在是下午工作時段。重新確認進度，
+            選擇下一個可以交付的成果並開始番茄鐘。
+            <strong>交出去，比在腦中追求完美重要。</strong>
+        `;
+
+        card.style.borderColor = "#03dac6";
+
+    } else if (totalMinutes >= 1110 && totalMinutes < 1200) {
+        title.textContent = "🍽️ 系統狀態：補足蛋白營養";
+
+        message.innerHTML = `
+            工作時段結束，先補充晚餐和水分。
+            <strong>不要因為忙碌或藥物影響食慾，就跳過身體需要的營養。</strong>
+        `;
+
+        card.style.borderColor = "#fbbf24";
+
+    } else {
+        title.textContent = "🧱 系統狀態：片磚片瓦，變成更好的人";
+
+        message.innerHTML = `
+            現在是生活、運動與自我成長時段。
+            從醫學、資安、英日語、音樂、運動或空間整理中，
+            <strong>只選一項，累積 10–25 分鐘。</strong>
+        `;
+
+        card.style.borderColor = "#bb86fc";
+    }
+}
+
+function openAlarmApp() {
+    const userAgent = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+
+    if (isAndroid) {
+        /*
+          從一般網頁呼叫系統 App 會受瀏覽器及手機品牌限制。
+          此處採用 Android 的鬧鐘 Intent 作最佳嘗試。
+        */
+        window.location.href =
+            "intent:#Intent;action=android.intent.action.SET_ALARM;end";
+
+        window.setTimeout(() => {
+            alert("若鬧鐘 App 沒有開啟，請手動開啟時鐘並設定起床時間。");
+        }, 1200);
+
+        return;
+    }
+
+    if (isIOS) {
+        alert(
+            "iPhone 網頁無法可靠地直接開啟鬧鐘設定頁。\n\n" +
+            "請對 Siri 說：\n「設定早上七點半的鬧鐘」"
+        );
+
+        return;
+    }
+
+    alert("請開啟裝置的時鐘或鬧鐘 App，設定明早起床時間。");
+}
 
         function saveDump() {
             const text = document
@@ -453,6 +607,12 @@ ${dump || "今天尚未輸入內容。"}
             updateDumpDisplay(savedText);
             loadHabits();
             updateTimerDisplay();
+updateSystemStatus();
+
+statusUpdateInterval = window.setInterval(
+    updateSystemStatus,
+    1 * 1000
+);
 
             habitIds.forEach((id) => {
                 document
